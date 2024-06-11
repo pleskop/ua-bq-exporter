@@ -16,12 +16,14 @@ BIGQUERY_TABLE = ''  # BigQuery Table name where the data will be stored, if it 
 # Setting up the environment variable for Google Application Credentials
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = KEY_FILE_LOCATION
 
-def initialize_analyticsreporting():
+
+def initialize_analytics_reporting():
     """Initializes the Google Analytics Reporting API client."""
     credentials = ServiceAccountCredentials.from_json_keyfile_name(
         KEY_FILE_LOCATION, SCOPES)
     analytics = build('analyticsreporting', 'v4', credentials=credentials)
     return analytics
+
 
 def get_report(analytics, page_token=None):
     """Fetches the report data from Google Analytics."""
@@ -51,7 +53,7 @@ def get_report(analytics, page_token=None):
                     {'name': 'ga:source'},
                     {'name': 'ga:pagePath'},
                     {'name': 'ga:deviceCategory'},
-                    {'name': 'ga:date'}, # get the details by year-month-day
+                    {'name': 'ga:date'},  # get the details by year-month-day
                     # Add or remove dimensions as per your requirements
                 ],
                 'pageSize': 20000  # Adjust the pageSize as needed
@@ -63,29 +65,31 @@ def get_report(analytics, page_token=None):
 
     return analytics.reports().batchGet(body=body).execute()
 
+
 def response_to_dataframe(response):
     """Converts the API response into a pandas DataFrame."""
     list_rows = []
     for report in response.get('reports', []):
-        columnHeader = report.get('columnHeader', {})
-        dimensionHeaders = columnHeader.get('dimensions', [])
-        metricHeaders = columnHeader.get('metricHeader', {}).get('metricHeaderEntries', [])
+        column_header = report.get('columnHeader', {})
+        dimension_headers = column_header.get('dimensions', [])
+        metric_headers = column_header.get('metricHeader', {}).get('metricHeaderEntries', [])
 
         for row in report.get('data', {}).get('rows', []):
             dimensions = row.get('dimensions', [])
-            dateRangeValues = row.get('metrics', [])
+            date_range_values = row.get('metrics', [])
 
             row_data = {}
-            for header, dimension in zip(dimensionHeaders, dimensions):
+            for header, dimension in zip(dimension_headers, dimensions):
                 row_data[header] = dimension
 
-            for values in dateRangeValues:
-                for metricHeader, value in zip(metricHeaders, values.get('values')):
+            for values in date_range_values:
+                for metricHeader, value in zip(metric_headers, values.get('values')):
                     row_data[metricHeader.get('name')] = value
 
             list_rows.append(row_data)
 
     return pd.DataFrame(list_rows)
+
 
 def upload_to_bigquery(df, project_id, dataset_id, table_id):
     """Uploads the DataFrame to Google BigQuery."""
@@ -125,13 +129,14 @@ def upload_to_bigquery(df, project_id, dataset_id, table_id):
     load_job.result()
     print(f"Data uploaded")
 
+
 def main():
     """Main function to execute the script."""
     try:
         page_token = None
         while True:
             # Fetching the report data from Google Analytics
-            analytics = initialize_analyticsreporting()
+            analytics = initialize_analytics_reporting()
             response = get_report(analytics, page_token)
             df = response_to_dataframe(response)
             upload_to_bigquery(df, BIGQUERY_PROJECT, BIGQUERY_DATASET, BIGQUERY_TABLE)
@@ -139,10 +144,11 @@ def main():
             if not page_token:
                 break
             print(f"Fetching next page of results...{page_token}")
-        
+
     except Exception as e:
         # Handling exceptions and printing error messages
         print(f"Error occurred: {e}")
+
 
 if __name__ == '__main__':
     main()  # Entry point of the script

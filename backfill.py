@@ -7,7 +7,7 @@ import os
 
 # Configuration variables for Google Analytics and BigQuery
 SCOPES = ['https://www.googleapis.com/auth/analytics.readonly']
-KEY_FILE_LOCATION = ''  # Path to your Google Cloud service account key file
+KEY_FILE_LOCATION = '.secrets/gcp-key.json'  # Path to your Google Cloud service account key file
 VIEW_ID = ''  # Your Google Analytics View ID
 BIGQUERY_PROJECT = ''  # Your Google Cloud Project ID
 BIGQUERY_DATASET = ''  # BigQuery Dataset name where the data will be stored
@@ -97,6 +97,16 @@ def upload_to_bigquery(df, project_id, dataset_id, table_id):
     df.columns = [col.replace('ga:', 'gs_') for col in df.columns]
 
     bigquery_client = bigquery.Client(project=project_id)
+
+    #TODO rewrite
+    if datasets := list(bigquery_client.list_datasets()):
+        dateset_ids = {dataset.dataset_id for dataset in datasets}
+        if dataset_id not in dateset_ids:
+            table_ref = f'{bigquery_client.project}.{dataset_id}'
+            dataset = bigquery.Dataset(table_ref)
+            dataset.location = 'EU'
+            bigquery_client.create_dataset(dataset)
+
     dataset_ref = bigquery_client.dataset(dataset_id)
     table_ref = dataset_ref.table(table_id)
     schema = []
